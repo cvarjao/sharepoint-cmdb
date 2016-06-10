@@ -1,0 +1,107 @@
+<html>
+<head>
+<script type="text/javascript" src="https://ajax.googleapis.com/ajax/libs/jquery/2.2.3/jquery.min.js"></script>
+<script type="text/javascript" src="https://cdnjs.cloudflare.com/ajax/libs/knockout/3.4.0/knockout-min.js"></script>
+<head>
+<body>
+<h1>Application Migration Request Form</h1>
+<div class='liveExample'>
+    <p>Application: <input data-bind='value: application' /></p> 
+    <h2>Changing Components:</h2>
+    <a data-bind="click: addComponent">Add</a>
+    <div data-bind="foreach: components">
+        <input data-bind='value: component' />
+        <a data-bind="click: deleteComponent.bind($data, $parent)">X</a>
+    </div>
+</div>
+<ul id="data"></ul>
+<script  type="text/javascript">
+var SharePointSite=function(){
+  var self=this;
+  var SP_Site_URL='https://spc-csnr.gov.bc.ca/appdel'
+  
+  this.getListCollection=function(name){
+    var soapEnv = "<soapenv:Envelope xmlns:soapenv='http://schemas.xmlsoap.org/soap/envelope/'><soapenv:Body><GetListCollection xmlns='http://schemas.microsoft.com/sharepoint/soap/'></GetListCollection></soapenv:Body></soapenv:Envelope>";
+
+    $.ajax({
+        url: SP_Site_URL+"/_vti_bin/lists.asmx",
+        type: "POST",
+        dataType: "xml",
+        data: soapEnv,
+        xhrFields: {withCredentials: true},
+        complete: function(xData, status) {
+            $("#data").empty()
+            $(xData.responseXML).find("List").each(function() {
+                $("#data").append("<li>" + $(this).attr("Title") + "</li>");
+            });
+        },
+        contentType: "text/xml; charset=\"utf-8\""
+    });
+  };
+  
+  this.getListItems=function(listName){
+    //'      <query><Query><Where><Contains><FieldRef Name="Title" /><Value Type="Text">AQ</Value></Contains></Where></Query></query> '
+    //'      <query></query> '
+    //'      <viewName>{2339A98A-0033-405E-8B20-DAF6ACBE2B8F}</viewName> ' +
+    
+    var soapEnv =
+    '<soap:Envelope xmlns:soap="http://schemas.xmlsoap.org/soap/envelope/">'+
+    '  <soap:Body> '+
+    '    <GetListItems xmlns="http://schemas.microsoft.com/sharepoint/soap/"> ' +
+    '      <listName>' + listName + '</listName> ' +
+    '      <viewName></viewName> ' +
+    '      <query><Query><Where><Or>  <Eq>    <FieldRef      Name="ItemType_x003a_ID" />    <Value      Type="Text">5</Value>  </Eq>  <Eq>    <FieldRef      Name="ItemType_x003a_ID" />    <Value      Type="Text">13</Value>  </Eq></Or><And><Contains><FieldRef Name="Title" /><Value Type="Text">A</Value></Contains></And></Where></Query></query> ' +
+    '      <viewFields></viewFields> ' +
+    '      <rowLimit></rowLimit> ' +
+    '      <QueryOptions></QueryOptions> ' +
+    '      <webID></webID> ' +
+    '    </GetListItems> ' +
+    '  </soap:Body> ' +
+    '</soap:Envelope>';
+    
+    $.ajax({
+        url: SP_Site_URL+"/_vti_bin/lists.asmx",
+        type: "POST",
+        dataType: "xml",
+        data: soapEnv,
+        xhrFields: {withCredentials: true},
+        complete: function(xData, status) {
+            $("#data").empty()
+            $(xData.responseXML).find("z\\:row, row").each(function() {
+                $("#data").append("<li>" + $(this).attr("ows_Title") + "</li>");
+            });
+        },
+        contentType: "text/xml; charset=\"utf-8\""
+    });
+  };
+  this.listApplicationsByName=function(name){
+    self.getListItems('ConfigurationItem')
+  }
+}
+// Here's my data model
+var RequestFormItemViewModel = function() {
+    var self=this;
+    self.component = ko.observable();
+    
+    self.deleteComponent = function (parentViewModel) {
+      var deletingItem = this; // $data, passed when binding from view
+      parentViewModel.components.remove(deletingItem);
+    }
+}
+var RequestFormViewModel = function() {
+    var self=this;
+    self.application = ko.observable();
+    self.components = ko.observableArray();
+    self.addComponent = function() {
+        //var newItem = new RequestFormItemViewModel();
+        //self.components.unshift(newItem);
+        var sharePointSite=new SharePointSite();
+        sharePointSite.listApplicationsByName();
+    }
+
+};
+ 
+ko.applyBindings(new RequestFormViewModel()); // This makes Knockout get to work
+</script>
+</body>
+</html>
