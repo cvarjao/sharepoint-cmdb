@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Title of the document</title>
+<meta http-equiv="X-UA-Compatible" content="IE=edge;" />
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/2.2.3/jquery.min.js"></script>
+<script src="https://ajax.aspnetcdn.com/ajax/knockout/knockout-3.3.0.js"></script>
+<!--
+http://weblogs.asp.net/jan/creating-list-items-with-jquery-and-the-sharepoint-web-services
+http://weblogs.asp.net/jan/calling-the-sharepoint-web-services-with-jquery
+
+-->
+</head>
+<body>
+<h1>Header1</h1>
+<p>Paragraph1</p>
+<script type="text/javascript">
+
+$(document).ready(function(){
+ $("#msgid").html("This is Hello World by JQuery");
+});
+</script>
+This is Hello World by HTML
+<div id="msgid">
+</div>
+<script type="text/javascript">
+var SP_Site_URL='https://spc-csnr.gov.bc.ca/appdelivery'
+
+function CreateNewItem(title) {
+    var batch =
+        "<Batch OnError=\"Continue\"> \
+            <Method ID=\"1\" Cmd=\"New\"> \
+                <Field Name=\"Title\">" + title + "</Field> \
+            </Method> \
+        </Batch>";
+
+    var soapEnv =
+        "<?xml version=\"1.0\" encoding=\"utf-8\"?> \
+        <soap:Envelope xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\" \
+            xmlns:xsd=\"http://www.w3.org/2001/XMLSchema\" \
+            xmlns:soap=\"http://schemas.xmlsoap.org/soap/envelope/\"> \
+          <soap:Body> \
+            <UpdateListItems xmlns=\"http://schemas.microsoft.com/sharepoint/soap/\"> \
+              <listName>Tasks</listName> \
+              <updates> \
+                " + batch + "</updates> \
+            </UpdateListItems> \
+          </soap:Body> \
+        </soap:Envelope>";
+
+    $.ajax({
+        url: SP_Site_URL+"/_vti_bin/lists.asmx",
+        beforeSend: function(xhr) {
+            xhr.setRequestHeader("SOAPAction",
+            "http://schemas.microsoft.com/sharepoint/soap/UpdateListItems");
+        },
+        type: "POST",
+        dataType: "xml",
+        data: soapEnv,
+        complete: function (xData, status){
+          $("#debugPanel").val(xData.responseText);
+          alert(status);
+        },
+        contentType: "text/xml; charset=utf-8"
+    });
+}
+
+
+
+$(document).ready(function() {
+
+    $("#GetListCollection").click(function() {
+      var soapEnv = "<soapenv:Envelope xmlns:soapenv='http://schemas.xmlsoap.org/soap/envelope/'><soapenv:Body><GetListCollection xmlns='http://schemas.microsoft.com/sharepoint/soap/'></GetListCollection></soapenv:Body></soapenv:Envelope>";
+
+      $.ajax({
+          url: SP_Site_URL+"/_vti_bin/lists.asmx",
+          type: "POST",
+          dataType: "xml",
+          data: soapEnv,
+          complete: function(xData, status) {
+              $(xData.responseXML).find("List").each(function() {
+                  $("#data").append("<li>" + $(this).attr("Title") + "</li>");
+              });
+          },
+          contentType: "text/xml; charset=\"utf-8\""
+      });
+    });
+    $("#newTaskButton").click(function() {
+        CreateNewItem($("#newTaskTitle").val());
+    });
+    
+    $("#getFromIRSButton").click(function() {
+        $.ajax({
+            url: "https://a100.gov.bc.ca/int/irs/viewAllApps.do?classCodes=STD&classCodes=LW&classCodes=DS&classCodes=COTS&statusCodes=0&statusCodes=1&statusCodes=2&statusCodes=3&statusCodes=4&&statusCodes=5&statusCodes=6",
+            type: "GET",
+            dataType: "html",
+            xhrFields: {withCredentials: true},
+            success: function (responseData, status){
+            //table.fancyTable
+              $("#debugPanel").val('');
+              var responseHtml=responseData.replace(/(<(\b(img|style|script|head|link)\b)(([^>]*\/>)|([^\7]*(<\/\2[^>]*>)))|(<\bimg\b)[^>]*>|(\b(background|style)\b=\s*"[^"]*"))/g,"");
+
+              $(responseHtml).find('table.fancyTable').find('tbody').find('tr').each(function(){
+                var irsAppName=$(this).attr('onClick').split('=')[2].slice(0,-1);
+                $.ajax({
+                  url: "https://a100.gov.bc.ca/int/irs/viewApplication.do?name="+irsAppName,
+                  type: "GET",
+                  dataType: "html",
+                  xhrFields: {withCredentials: true},
+                  success: function (responseData, status){
+                    var environments=[];
+                
+                var curText=$("#debugPanel").val();
+                if (curText.length>0){
+                  $("#debugPanel").val(curText+'\n'+irsAppName);
+                }else{
+                  $("#debugPanel").val(irsAppName);
+                }
+                    var responseHtml=responseData.replace(/(<(\b(img|style|script|head|link)\b)(([^>]*\/>)|([^\7]*(<\/\2[^>]*>)))|(<\bimg\b)[^>]*>|(\b(background|style)\b=\s*"[^"]*"))/g,"");
+                    $(responseHtml).find("a[href*='selectedEnvironment']").each(function(){
+                      environments.push($(this).html());
+                    });
+                    $("#debugPanel").val($("#debugPanel").val()+': '+ environments.join())
+                    
+                  }
+                });
+                
+                
+              });
+              
+            }
+        });
+        applicationsFromIRS
+    });
+}); 
+</script>
+<h2>List Collection</h2>
+<input id="GetListCollection" type="button" value="GetListCollection" />
+<ul id="data"></ul>
+
+<h2>Tasks:</h2>
+<p>
+    Task Title: 
+    <input id="newTaskTitle" type="text" />
+    <input id="newTaskButton" type="button" value="Create Task" />
+</p>
+<h2>IRS Applications:</h2>
+<input id="getFromIRSButton" type="button" value="Get Applications from IRS" />
+<ul id="applicationsFromIRS"></ul>
+<h2>Debug:</h2>
+<textarea id="debugPanel" rows="40" cols="200">
+</textarea>
+</body>
+</html>
